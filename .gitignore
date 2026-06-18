@@ -1,0 +1,17 @@
+# Secrets and local config
+.env
+
+# Runtime data (SQLite database + WAL files)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Compiled binaries
+/tbilisi-transport-tg-bot
+/bot
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,22 @@
+# Version control
+.git
+.gitignore
+
+# The original TypeScript reference library (not needed to build the Go bot)
+ttc-api
+
+# Local runtime data and secrets
+data
+*.db
+*.db-*
+.env
+
+# Editor / OS noise
+.claude
+.idea
+.vscode
+.DS_Store
+
+# Docs (not needed in the build context)
+README.md
+LICENSE

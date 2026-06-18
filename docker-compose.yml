@@ -1,0 +1,16 @@
+services:
+  bot:
+    build: .
+    image: tbilisi-transport-tg-bot
+    container_name: tbilisi-transport-tg-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override the default so the SQLite file lives on the named volume.
+      DATABASE_PATH: /data/bot.db
+    volumes:
+      - bot-data:/data
+
+volumes:
+  bot-data:
