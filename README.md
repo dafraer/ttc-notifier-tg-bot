@@ -95,21 +95,21 @@ go run .
 
 ## Running with Docker Compose (no clone needed)
 
-`docker-compose.yml` pulls a pre-built image, so you don't need the source. Just
-grab the compose file, drop a `.env` next to it, and start it:
+`docker-compose.yml` pulls a pre-built image, so you don't need the source. Grab
+the compose file, set your bot token in it, and start it:
 
 ```bash
 wget https://raw.githubusercontent.com/dafraer/ttc-notifier-tg-bot/refs/heads/main/docker-compose.yml
 
-# create .env in the same directory with at least your bot token
-echo "TELEGRAM_BOT_TOKEN=123456:your-token-here" > .env
+# edit docker-compose.yml and replace TELEGRAM_BOT_TOKEN with your @BotFather token
 
 docker compose up -d
 docker compose logs -f
 ```
 
-The SQLite database is stored on the `bot-data` named volume and survives
-container restarts.
+The bot token (and the optional `TTC_LOCALE`) are set directly as environment
+variables in `docker-compose.yml`. The SQLite database is stored on the
+`bot-data` named volume and survives container restarts.
 
 ### Building the image yourself
 
@@ -118,9 +118,7 @@ static binary (and CA certificates), with no Go toolchain or source. To build
 and run from a clone instead of pulling:
 
 ```bash
-cp .env.example .env
-# edit .env and set TELEGRAM_BOT_TOKEN
-
+# set TELEGRAM_BOT_TOKEN in docker-compose.yml first
 docker build -t ghcr.io/dafraer/ttc-notifier-tg-bot:latest .
 docker compose up -d
 ```

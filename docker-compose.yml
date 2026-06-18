@@ -3,10 +3,12 @@ services:
     image: ghcr.io/dafraer/ttc-notifier-tg-bot:latest
     container_name: tbilisi-transport-tg-bot
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
-      # Override the default so the SQLite file lives on the named volume.
+      # Set your bot token from @BotFather here.
+      TELEGRAM_BOT_TOKEN: "123456:your-token-here"
+      # Response language: "en" or "ka".
+      TTC_LOCALE: "en"
+      # Keep the SQLite file on the named volume below.
       DATABASE_PATH: /data/bot.db
     volumes:
       - bot-data:/data
