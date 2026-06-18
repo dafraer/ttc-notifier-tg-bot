@@ -116,7 +116,20 @@ func (b *Bot) edit(ctx context.Context, chatID int64, messageID int, text string
 
 // ---- commands ----
 
+// sender extracts the user and chat ids from a message update. It returns
+// ok=false when there is no identifiable sender (e.g. an anonymous group admin
+// or channel post, where From is nil), so callers can skip safely.
+func sender(u *models.Update) (userID, chatID int64, ok bool) {
+	if u.Message == nil || u.Message.From == nil {
+		return 0, 0, false
+	}
+	return u.Message.From.ID, u.Message.Chat.ID, true
+}
+
 func (b *Bot) cmdHelp(ctx context.Context, _ *bot.Bot, u *models.Update) {
+	if u.Message == nil {
+		return
+	}
 	text := strings.Join([]string{
 		"👋 <b>Tbilisi Transport reminder bot</b>",
 		"",
@@ -132,52 +145,68 @@ func (b *Bot) cmdHelp(ctx context.Context, _ *bot.Bot, u *models.Update) {
 }
 
 func (b *Bot) cmdAdd(ctx context.Context, _ *bot.Bot, u *models.Update) {
+	userID, chatID, ok := sender(u)
+	if !ok {
+		return
+	}
 	st := &storage.State{
-		UserID: u.Message.From.ID,
-		ChatID: u.Message.Chat.ID,
+		UserID: userID,
+		ChatID: chatID,
 		Step:   storage.StepAwaitingBus,
 	}
 	if err := b.store.SaveState(st); err != nil {
 		b.log.Error("save state", zap.Error(err))
-		b.send(ctx, u.Message.Chat.ID, "⚠️ Something went wrong, please try again.", nil)
+		b.send(ctx, chatID, "⚠️ Something went wrong, please try again.", nil)
 		return
 	}
-	b.send(ctx, u.Message.Chat.ID, promptBusNumber, nil)
+	b.send(ctx, chatID, promptBusNumber, nil)
 }
 
 func (b *Bot) cmdCancel(ctx context.Context, _ *bot.Bot, u *models.Update) {
-	_ = b.store.ClearState(u.Message.From.ID)
-	b.send(ctx, u.Message.Chat.ID, "❌ Cancelled.", nil)
+	userID, chatID, ok := sender(u)
+	if !ok {
+		return
+	}
+	_ = b.store.ClearState(userID)
+	b.send(ctx, chatID, "❌ Cancelled.", nil)
 }
 
 func (b *Bot) cmdList(ctx context.Context, _ *bot.Bot, u *models.Update) {
-	ns, err := b.store.ListNotifications(u.Message.From.ID)
+	userID, chatID, ok := sender(u)
+	if !ok {
+		return
+	}
+	ns, err := b.store.ListNotifications(userID)
 	if err != nil {
 		b.log.Error("list notifications", zap.Error(err))
 		return
 	}
 	if len(ns) == 0 {
-		b.send(ctx, u.Message.Chat.ID, "You have no reminders yet. Use /add to create one.", nil)
+		b.send(ctx, chatID, "You have no reminders yet. Use /add to create one.", nil)
 		return
 	}
 	var parts []string
 	for i := range ns {
 		parts = append(parts, notificationCard(&ns[i]))
 	}
-	b.send(ctx, u.Message.Chat.ID, strings.Join(parts, "\n\n➖➖➖\n\n"), nil)
+	b.send(ctx, chatID, strings.Join(parts, "\n\n➖➖➖\n\n"), nil)
 }
 
 func (b *Bot) cmdRemove(ctx context.Context, _ *bot.Bot, u *models.Update) {
-	ns, err := b.store.ListNotifications(u.Message.From.ID)
+	userID, chatID, ok := sender(u)
+	if !ok {
+		return
+	}
+	ns, err := b.store.ListNotifications(userID)
 	if err != nil {
 		b.log.Error("list notifications", zap.Error(err))
 		return
 	}
 	if len(ns) == 0 {
-		b.send(ctx, u.Message.Chat.ID, "You have no reminders to remove.", nil)
+		b.send(ctx, chatID, "You have no reminders to remove.", nil)
 		return
 	}
-	b.send(ctx, u.Message.Chat.ID, "🗑 Which reminder should I remove?", removeKeyboard(ns))
+	b.send(ctx, chatID, "🗑 Which reminder should I remove?", removeKeyboard(ns))
 }
 
 // ---- text (wizard) ----
@@ -298,12 +327,13 @@ func (b *Bot) onCallback(ctx context.Context, _ *bot.Bot, u *models.Update) {
 		return
 	}
 
-	var chatID int64
-	var messageID int
-	if cq.Message.Message != nil {
-		chatID = cq.Message.Message.Chat.ID
-		messageID = cq.Message.Message.ID
+	// We always edit the originating message; if it's inaccessible (too old)
+	// there's nothing we can act on.
+	if cq.Message.Message == nil {
+		return
 	}
+	chatID := cq.Message.Message.Chat.ID
+	messageID := cq.Message.Message.ID
 	userID := cq.From.ID
 
 	parts := strings.Split(cq.Data, ":")

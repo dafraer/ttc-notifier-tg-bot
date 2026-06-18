@@ -63,13 +63,16 @@ func (n *Notifier) check(ctx context.Context) {
 	nowMin := tbot.NowMinutes(now)
 
 	// Group notifications by stop so we hit the arrival-times endpoint once per
-	// stop rather than once per notification.
+	// stop rather than once per notification. The key is the bare id (the ttc
+	// client adds the "1:" prefix itself) so stops stored either as "925" or an
+	// older "1:925" form collapse into a single request.
 	byStop := make(map[string][]storage.Notification)
 	for _, no := range notifs {
 		if !tbot.WithinWindow(nowMin, no.StartMinutes, no.EndMinutes) {
 			continue
 		}
-		byStop[no.StopID] = append(byStop[no.StopID], no)
+		key := bareStopID(no.StopID)
+		byStop[key] = append(byStop[key], no)
 	}
 
 	for stopID, group := range byStop {
@@ -79,9 +82,7 @@ func (n *Notifier) check(ctx context.Context) {
 		default:
 		}
 
-		// The ttc client prefixes the id with "1:"; pass the bare id so stops
-		// stored with an older "1:925"-style id still resolve correctly.
-		arrivals, err := n.ttc.ArrivalTimes(ctx, ttc.ArrivalOptions{StopID: bareStopID(stopID)})
+		arrivals, err := n.ttc.ArrivalTimes(ctx, ttc.ArrivalOptions{StopID: stopID})
 		if err != nil {
 			n.log.Warn("notifier: arrival times", zap.String("stop", stopID), zap.Error(err))
 			continue
@@ -130,13 +131,21 @@ func bareStopID(id string) string {
 	return id
 }
 
-// soonestArrival returns the smallest realtime arrival time (in minutes) for the
+// soonestArrival returns the smallest live arrival time (in minutes) for the
 // given bus short name among the arrivals, and whether any matched.
+//
+// Only entries with realtime data are considered: for scheduled-only entries
+// the API reports realtime=false and realtimeArrivalMinutes is not a live
+// prediction (it can be 0 or a sentinel like -1), which would otherwise fire a
+// bogus "arriving now" reminder.
 func soonestArrival(busNumber string, arrivals []ttc.BusArrival) (int, bool) {
 	want := strings.TrimSpace(strings.ToLower(busNumber))
 	best := -1
 	for _, a := range arrivals {
 		if strings.ToLower(strings.TrimSpace(a.ShortName)) != want {
+			continue
+		}
+		if !a.Realtime || a.RealtimeArrivalMinutes < 0 {
 			continue
 		}
 		m := a.RealtimeArrivalMinutes
