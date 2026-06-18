@@ -93,21 +93,37 @@ mkdir -p data
 go run .
 ```
 
-## Running with Docker
+## Running with Docker Compose (no clone needed)
 
-The image is built in two stages, so the final image contains only the static
-binary (and CA certificates), with no Go toolchain or source.
+`docker-compose.yml` pulls a pre-built image, so you don't need the source. Just
+grab the compose file, drop a `.env` next to it, and start it:
 
 ```bash
-cp .env.example .env
-# edit .env and set TELEGRAM_BOT_TOKEN
+wget https://raw.githubusercontent.com/dafraer/ttc-notifier-tg-bot/refs/heads/main/docker-compose.yml
 
-docker compose up --build -d
+# create .env in the same directory with at least your bot token
+echo "TELEGRAM_BOT_TOKEN=123456:your-token-here" > .env
+
+docker compose up -d
 docker compose logs -f
 ```
 
 The SQLite database is stored on the `bot-data` named volume and survives
 container restarts.
+
+### Building the image yourself
+
+The `Dockerfile` is a two-stage build, so the final image contains only the
+static binary (and CA certificates), with no Go toolchain or source. To build
+and run from a clone instead of pulling:
+
+```bash
+cp .env.example .env
+# edit .env and set TELEGRAM_BOT_TOKEN
+
+docker build -t ghcr.io/dafraer/ttc-notifier-tg-bot:latest .
+docker compose up -d
+```
 
 ## Development
 

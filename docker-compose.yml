@@ -1,7 +1,6 @@
 services:
   bot:
-    build: .
-    image: tbilisi-transport-tg-bot
+    image: ghcr.io/dafraer/ttc-notifier-tg-bot:latest
     container_name: tbilisi-transport-tg-bot
     restart: unless-stopped
     env_file:
